@@ -31,6 +31,64 @@
 
 #include "test.h"
 
+/* Run under LeakSanitizer to verify fail/free releases entry compressors
+ * without finishing the entry, including partial writes, completed entries,
+ * and reuse of the shared codec union for a following entry. */
+DEFINE_TEST(test_write_format_zip_abort)
+{
+	static const char *methods[] = {"deflate", "bzip2", "lzma", "xz", "zstd"};
+	size_t method, phase;
+	for (method = 0; method < sizeof(methods) / sizeof(methods[0]); ++method) {
+		for (phase = 0; phase < 5; ++phase) {
+			struct archive *a = archive_write_new();
+			struct archive_entry *entry;
+			char buffer[65536];
+			size_t used = 0;
+			assert(a != NULL);
+			assertEqualIntA(a, ARCHIVE_OK, archive_write_set_format_zip(a));
+			if (archive_write_set_format_option(a, "zip", "compression",
+			    methods[method]) != ARCHIVE_OK) {
+				skipping("ZIP %s compressor unavailable", methods[method]);
+				assertEqualInt(ARCHIVE_OK, archive_write_free(a));
+				break;
+			}
+			assertEqualIntA(a, ARCHIVE_OK, archive_write_open_memory(a,
+			    buffer, sizeof(buffer), &used));
+			entry = archive_entry_new();
+			assert(entry != NULL);
+			archive_entry_set_pathname(entry, "partial.txt");
+			archive_entry_set_mode(entry, AE_IFREG | 0644);
+			archive_entry_set_size(entry, 8);
+			assertEqualIntA(a, ARCHIVE_OK, archive_write_header(a, entry));
+			if (phase > 0)
+				assertEqualIntA(a, 4, archive_write_data(a, "abcd", 4));
+			if (phase >= 2)
+				assertEqualIntA(a, ARCHIVE_OK, archive_write_finish_entry(a));
+			if (phase >= 3) {
+				int selected;
+				if (phase == 3) {
+					selected = archive_write_zip_set_compression_store(a);
+					assertEqualIntA(a, ARCHIVE_OK, selected);
+				} else
+					selected = archive_write_zip_set_compression_deflate(a);
+				if (selected != ARCHIVE_OK) {
+					skipping("Following ZIP deflate compressor unavailable");
+					archive_entry_free(entry);
+					archive_write_fail(a);
+					assertEqualInt(ARCHIVE_OK, archive_write_free(a));
+					continue;
+				}
+				archive_entry_set_pathname(entry, "following.txt");
+				assertEqualIntA(a, ARCHIVE_OK, archive_write_header(a, entry));
+				assertEqualIntA(a, 4, archive_write_data(a, "efgh", 4));
+			}
+			archive_entry_free(entry);
+			archive_write_fail(a);
+			assertEqualInt(ARCHIVE_OK, archive_write_free(a));
+		}
+	}
+}
+
 /*
  * This test doesn't actually check that the zip writer is
  * correct, just that our zip reader can read the output of
