@@ -904,6 +904,11 @@ typedef uint64_t uintmax_t;
 /* Define to 1 if you have the <mbedtls/aes.h> header file. */
 #cmakedefine HAVE_MBEDTLS_AES_H 1
 
+/* Public PSA Crypto API (Mbed TLS 4 / TF-PSA-Crypto). */
+#cmakedefine HAVE_MBEDTLS_PSA_CRYPTO_H 1
+#cmakedefine HAVE_TF_PSA_CRYPTO_VERSION_H 1
+#cmakedefine ARCHIVE_CRYPTO_MBEDTLS_PSA 1
+
 /* Define to 1 if you have the <mbedtls/md.h> header file. */
 #cmakedefine HAVE_MBEDTLS_MD_H 1
 

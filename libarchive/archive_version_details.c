@@ -61,6 +61,9 @@
 #if HAVE_MBEDTLS_VERSION_H
 #include <mbedtls/version.h>
 #endif
+#if HAVE_TF_PSA_CRYPTO_VERSION_H
+#include <tf-psa-crypto/version.h>
+#endif
 #if HAVE_NETTLE_VERSION_H
 #include <nettle/version.h>
 #include <stdio.h>
@@ -365,9 +368,14 @@ const char *
 archive_mbedtls_version(void)
 {
 #if defined(ARCHIVE_CRYPTOR_USE_MBED) || defined(ARCHIVE_CRYPTO_MBED)
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+	/* The crypto library no longer exports TLS's version functions. */
+	return MBEDTLS_VERSION_STRING "/TF-PSA-Crypto-" TF_PSA_CRYPTO_VERSION_STRING;
+#else
 	static char mbed_version[9];
 	mbedtls_version_get_string(mbed_version);
 	return mbed_version;
+#endif
 #else
 	return NULL;
 #endif

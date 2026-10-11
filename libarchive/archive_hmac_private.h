@@ -53,6 +53,14 @@ typedef struct {
 
 } archive_hmac_sha1_ctx;
 
+#elif defined(HAVE_LIBMBEDCRYPTO) && defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+#include <psa/crypto.h>
+typedef struct {
+	mbedtls_svc_key_id_t key;
+	psa_mac_operation_t operation;
+	psa_status_t status;
+} archive_hmac_sha1_ctx;
+
 #elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_MD_H)
 #include <mbedtls/md.h>
 

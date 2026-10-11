@@ -902,6 +902,116 @@ DEFINE_TEST(test_write_format_zip_winzip_aes128_encryption)
 	free(buff);
 }
 
+static la_ssize_t
+fail_aes_salt_write(struct archive *a, void *data, const void *buffer, size_t size)
+{
+	int *fail = data;
+	(void)buffer;
+	if (*fail) {
+		archive_set_error(a, EIO, "Injected encrypted salt output failure");
+		return -1;
+	}
+	return (la_ssize_t)size;
+}
+
+DEFINE_TEST(test_write_format_zip_aes_salt_output_failure)
+{
+	struct archive *a;
+	struct archive_entry *entry;
+	int fail, i, ret;
+	/* Repeated failure must not exhaust PSA's finite imported-key slots. */
+	for (i = 0; i < 128; ++i) {
+		fail = 0;
+		a = archive_write_new();
+		assert(a != NULL);
+		assertEqualIntA(a, ARCHIVE_OK, archive_write_set_format_zip(a));
+		ret = archive_write_set_options(a, "zip:encryption=aes256,zip:compression=store");
+		if (ret != ARCHIVE_OK) {
+#ifdef ARCHIVE_CRYPTO_MBEDTLS_PSA
+			assertEqualIntA(a, ARCHIVE_OK, ret);
+#else
+			skipping("This system does not have a cryptographic library");
+#endif
+			archive_write_free(a);
+			return;
+		}
+		assertEqualIntA(a, ARCHIVE_OK, archive_write_set_passphrase(a, "password"));
+		assertEqualIntA(a, ARCHIVE_OK, archive_write_set_bytes_per_block(a, 0));
+		assertEqualIntA(a, ARCHIVE_OK, archive_write_open(a, &fail,
+		    NULL, fail_aes_salt_write, NULL));
+		entry = archive_entry_new();
+		archive_entry_set_pathname(entry, "file");
+		archive_entry_set_filetype(entry, AE_IFREG);
+		archive_entry_set_perm(entry, 0600);
+		archive_entry_set_size(entry, 1);
+		assertEqualIntA(a, ARCHIVE_OK, archive_write_header(a, entry));
+		fail = 1;
+		assertEqualIntA(a, ARCHIVE_FATAL, archive_write_data(a, "x", 1));
+		archive_write_fail(a);
+		assertEqualIntA(a, ARCHIVE_OK, archive_write_free(a));
+		archive_entry_free(entry);
+	}
+}
+
+DEFINE_TEST(test_write_format_zip_aes_authentication_corruption)
+{
+	struct archive *a;
+	struct archive_entry *entry;
+	unsigned char buffer[4096];
+	char output[32];
+	const char contents[] = "authenticated";
+	size_t used = 0, auth_offset;
+	la_ssize_t ret;
+	int mode;
+	a = archive_write_new();
+	assert(a != NULL);
+	assertEqualIntA(a, ARCHIVE_OK, archive_write_set_format_zip(a));
+	ret = archive_write_set_options(a, "zip:encryption=aes256,zip:compression=store");
+	if (ret != ARCHIVE_OK) {
+#ifdef ARCHIVE_CRYPTO_MBEDTLS_PSA
+		assertEqualIntA(a, ARCHIVE_OK, ret);
+#else
+		skipping("This system does not have a cryptographic library");
+#endif
+		archive_write_free(a);
+		return;
+	}
+	assertEqualIntA(a, ARCHIVE_OK, archive_write_set_passphrase(a, "password"));
+	assertEqualIntA(a, ARCHIVE_OK, archive_write_open_memory(a, buffer, sizeof(buffer), &used));
+	entry = archive_entry_new();
+	archive_entry_set_pathname(entry, "file");
+	archive_entry_set_mode(entry, AE_IFREG | 0600);
+	archive_entry_set_size(entry, sizeof(contents));
+	assertEqualIntA(a, ARCHIVE_OK, archive_write_header(a, entry));
+	assertEqualIntA(a, sizeof(contents), archive_write_data(a, contents, sizeof(contents)));
+	assertEqualIntA(a, ARCHIVE_OK, archive_write_close(a));
+	assertEqualInt(ARCHIVE_OK, archive_write_free(a));
+	archive_entry_free(entry);
+	/* AES-256 STORE: local header, name/extra, 16-byte salt, 2-byte password
+	 * verification, content, then the 10-byte authentication code. */
+	auth_offset = 30 + (buffer[26] | ((size_t)buffer[27] << 8)) +
+	    (buffer[28] | ((size_t)buffer[29] << 8)) + 18 + sizeof(contents);
+	assert(auth_offset + 10 <= used);
+	if (auth_offset + 10 > used)
+		return;
+	buffer[auth_offset] ^= 1;
+	for (mode = 0; mode < 2; ++mode) {
+		a = archive_read_new();
+		assert(a != NULL);
+		assertEqualIntA(a, ARCHIVE_OK, archive_read_support_format_zip(a));
+		assertEqualIntA(a, ARCHIVE_OK, archive_read_add_passphrase(a, "password"));
+		assertEqualIntA(a, ARCHIVE_OK, mode == 0 ? archive_read_open_memory(a, buffer, used) :
+		    read_open_memory(a, buffer, used, 7));
+		assertEqualIntA(a, ARCHIVE_OK, archive_read_next_header(a, &entry));
+		do {
+			ret = archive_read_data(a, output, sizeof(output));
+		} while (ret > 0);
+		assertEqualIntA(a, ARCHIVE_WARN, ret);
+		assertEqualString("ZIP bad Authentication code", archive_error_string(a));
+		assertEqualInt(ARCHIVE_OK, archive_read_free(a));
+	}
+}
+
 DEFINE_TEST(test_write_format_zip_winzip_aes256_encryption)
 {
 	struct archive *a;

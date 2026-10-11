@@ -1544,7 +1544,6 @@ archive_write_zip_data(struct archive_write *a, const void *buff, size_t s)
 				ret = init_winzip_aes_encryption(a);
 				if (ret != ARCHIVE_OK)
 					return (ret);
-				zip->cctx_valid = zip->hctx_valid = 1;
 			}
 			break;
 		case ENCRYPTION_NONE:
@@ -2058,6 +2057,11 @@ archive_write_zip_finish_entry(struct archive_write *a)
 		size_t hmac_len = 20;
 
 		archive_hmac_sha1_final(&zip->hctx, hmac, &hmac_len);
+		if (hmac_len != sizeof(hmac)) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Failed to compute ZIP authentication code");
+			return (ARCHIVE_FATAL);
+		}
 		ret = __archive_write_output(a, hmac, AUTH_CODE_SIZE);
 		if (ret != ARCHIVE_OK)
 			return (ret);
@@ -2534,6 +2538,8 @@ init_winzip_aes_encryption(struct archive_write *a)
         }
 
 	/* Set a password verification value after the 'salt'. */
+	/* Both contexts now own resources even if writing the salt fails. */
+	zip->cctx_valid = zip->hctx_valid = 1;
 	salt[salt_len] = derived_key[key_len * 2];
 	salt[salt_len + 1] = derived_key[key_len * 2 + 1];
 

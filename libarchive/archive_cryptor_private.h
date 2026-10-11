@@ -73,6 +73,19 @@ typedef struct {
 	unsigned	encr_pos;
 } archive_crypto_ctx;
 
+#elif defined(HAVE_LIBMBEDCRYPTO) && defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+#include <psa/crypto.h>
+#define ARCHIVE_CRYPTOR_USE_MBED 1
+
+#define AES_MAX_KEY_SIZE 32
+#define AES_BLOCK_SIZE 16
+typedef struct {
+	mbedtls_svc_key_id_t key;
+	uint8_t nonce[AES_BLOCK_SIZE];
+	uint8_t encr_buf[AES_BLOCK_SIZE];
+	unsigned encr_pos;
+} archive_crypto_ctx;
+
 #elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_AES_H)
 #include <mbedtls/aes.h>
 #include <mbedtls/md.h>
