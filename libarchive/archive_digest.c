@@ -100,6 +100,50 @@ win_crypto_Final(unsigned char *buf, size_t bufsize, Digest_CTX *ctx)
 #endif /* defined(ARCHIVE_CRYPTO_WIN) */
 
 
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+static int
+psa_digest_init(psa_hash_operation_t *ctx, psa_algorithm_t algorithm)
+{
+    psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
+    psa_status_t status;
+    *ctx = initial;
+    if (__archive_psa_begin() != PSA_SUCCESS)
+        return ARCHIVE_FAILED;
+    status = psa_hash_setup(ctx, algorithm);
+    if (status != PSA_SUCCESS)
+        psa_hash_abort(ctx);
+    __archive_psa_end();
+    return status == PSA_SUCCESS ? ARCHIVE_OK : ARCHIVE_FAILED;
+}
+
+static int
+psa_digest_update(psa_hash_operation_t *ctx, const void *data, size_t length)
+{
+    psa_status_t status;
+    if (__archive_psa_begin() != PSA_SUCCESS)
+        return ARCHIVE_FAILED;
+    status = psa_hash_update(ctx, data, length);
+    if (status != PSA_SUCCESS)
+        psa_hash_abort(ctx);
+    __archive_psa_end();
+    return status == PSA_SUCCESS ? ARCHIVE_OK : ARCHIVE_FAILED;
+}
+
+static int
+psa_digest_final(psa_hash_operation_t *ctx, void *digest, size_t length)
+{
+    size_t written = 0;
+    psa_status_t status;
+    if (__archive_psa_begin() != PSA_SUCCESS)
+        return ARCHIVE_FAILED;
+    status = psa_hash_finish(ctx, digest, length, &written);
+    if (psa_hash_abort(ctx) != PSA_SUCCESS)
+        status = PSA_ERROR_BAD_STATE;
+    __archive_psa_end();
+    return status == PSA_SUCCESS && written == length ? ARCHIVE_OK : ARCHIVE_FAILED;
+}
+#endif
+
 /* MD5 implementations */
 #if defined(ARCHIVE_CRYPTO_MD5_LIBC)
 
@@ -211,34 +255,17 @@ __archive_md5final(archive_md5_ctx *ctx, void *md)
 static int
 __archive_md5init(archive_md5_ctx *ctx)
 {
-  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
-  *ctx = initial;
-  if (psa_crypto_init() != PSA_SUCCESS ||
-      psa_hash_setup(ctx, PSA_ALG_MD5) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_init(ctx, PSA_ALG_MD5);
 }
-
 static int
-__archive_md5update(archive_md5_ctx *ctx, const void *indata,
-    size_t insize)
+__archive_md5update(archive_md5_ctx *ctx, const void *data, size_t length)
 {
-  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_update(ctx, data, length);
 }
-
 static int
-__archive_md5final(archive_md5_ctx *ctx, void *md)
+__archive_md5final(archive_md5_ctx *ctx, void *digest)
 {
-  size_t length = 0;
-  psa_status_t status = psa_hash_finish(ctx, md, 16, &length);
-  psa_hash_abort(ctx);
-  return (status == PSA_SUCCESS && length == 16) ? ARCHIVE_OK : ARCHIVE_FATAL;
+    return psa_digest_final(ctx, digest, 16);
 }
 #else
 
@@ -435,34 +462,17 @@ __archive_ripemd160final(archive_rmd160_ctx *ctx, void *md)
 static int
 __archive_ripemd160init(archive_rmd160_ctx *ctx)
 {
-  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
-  *ctx = initial;
-  if (psa_crypto_init() != PSA_SUCCESS ||
-      psa_hash_setup(ctx, PSA_ALG_RIPEMD160) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_init(ctx, PSA_ALG_RIPEMD160);
 }
-
 static int
-__archive_ripemd160update(archive_rmd160_ctx *ctx, const void *indata,
-    size_t insize)
+__archive_ripemd160update(archive_rmd160_ctx *ctx, const void *data, size_t length)
 {
-  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_update(ctx, data, length);
 }
-
 static int
-__archive_ripemd160final(archive_rmd160_ctx *ctx, void *md)
+__archive_ripemd160final(archive_rmd160_ctx *ctx, void *digest)
 {
-  size_t length = 0;
-  psa_status_t status = psa_hash_finish(ctx, md, 20, &length);
-  psa_hash_abort(ctx);
-  return (status == PSA_SUCCESS && length == 20) ? ARCHIVE_OK : ARCHIVE_FATAL;
+    return psa_digest_final(ctx, digest, 20);
 }
 #else
 
@@ -700,34 +710,17 @@ __archive_sha1final(archive_sha1_ctx *ctx, void *md)
 static int
 __archive_sha1init(archive_sha1_ctx *ctx)
 {
-  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
-  *ctx = initial;
-  if (psa_crypto_init() != PSA_SUCCESS ||
-      psa_hash_setup(ctx, PSA_ALG_SHA_1) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_init(ctx, PSA_ALG_SHA_1);
 }
-
 static int
-__archive_sha1update(archive_sha1_ctx *ctx, const void *indata,
-    size_t insize)
+__archive_sha1update(archive_sha1_ctx *ctx, const void *data, size_t length)
 {
-  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_update(ctx, data, length);
 }
-
 static int
-__archive_sha1final(archive_sha1_ctx *ctx, void *md)
+__archive_sha1final(archive_sha1_ctx *ctx, void *digest)
 {
-  size_t length = 0;
-  psa_status_t status = psa_hash_finish(ctx, md, 20, &length);
-  psa_hash_abort(ctx);
-  return (status == PSA_SUCCESS && length == 20) ? ARCHIVE_OK : ARCHIVE_FATAL;
+    return psa_digest_final(ctx, digest, 20);
 }
 #else
 
@@ -1017,34 +1010,17 @@ __archive_sha256final(archive_sha256_ctx *ctx, void *md)
 static int
 __archive_sha256init(archive_sha256_ctx *ctx)
 {
-  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
-  *ctx = initial;
-  if (psa_crypto_init() != PSA_SUCCESS ||
-      psa_hash_setup(ctx, PSA_ALG_SHA_256) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_init(ctx, PSA_ALG_SHA_256);
 }
-
 static int
-__archive_sha256update(archive_sha256_ctx *ctx, const void *indata,
-    size_t insize)
+__archive_sha256update(archive_sha256_ctx *ctx, const void *data, size_t length)
 {
-  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_update(ctx, data, length);
 }
-
 static int
-__archive_sha256final(archive_sha256_ctx *ctx, void *md)
+__archive_sha256final(archive_sha256_ctx *ctx, void *digest)
 {
-  size_t length = 0;
-  psa_status_t status = psa_hash_finish(ctx, md, 32, &length);
-  psa_hash_abort(ctx);
-  return (status == PSA_SUCCESS && length == 32) ? ARCHIVE_OK : ARCHIVE_FATAL;
+    return psa_digest_final(ctx, digest, 32);
 }
 #else
 
@@ -1306,34 +1282,17 @@ __archive_sha384final(archive_sha384_ctx *ctx, void *md)
 static int
 __archive_sha384init(archive_sha384_ctx *ctx)
 {
-  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
-  *ctx = initial;
-  if (psa_crypto_init() != PSA_SUCCESS ||
-      psa_hash_setup(ctx, PSA_ALG_SHA_384) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_init(ctx, PSA_ALG_SHA_384);
 }
-
 static int
-__archive_sha384update(archive_sha384_ctx *ctx, const void *indata,
-    size_t insize)
+__archive_sha384update(archive_sha384_ctx *ctx, const void *data, size_t length)
 {
-  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_update(ctx, data, length);
 }
-
 static int
-__archive_sha384final(archive_sha384_ctx *ctx, void *md)
+__archive_sha384final(archive_sha384_ctx *ctx, void *digest)
 {
-  size_t length = 0;
-  psa_status_t status = psa_hash_finish(ctx, md, 48, &length);
-  psa_hash_abort(ctx);
-  return (status == PSA_SUCCESS && length == 48) ? ARCHIVE_OK : ARCHIVE_FATAL;
+    return psa_digest_final(ctx, digest, 48);
 }
 #else
 
@@ -1619,34 +1578,17 @@ __archive_sha512final(archive_sha512_ctx *ctx, void *md)
 static int
 __archive_sha512init(archive_sha512_ctx *ctx)
 {
-  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
-  *ctx = initial;
-  if (psa_crypto_init() != PSA_SUCCESS ||
-      psa_hash_setup(ctx, PSA_ALG_SHA_512) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_init(ctx, PSA_ALG_SHA_512);
 }
-
 static int
-__archive_sha512update(archive_sha512_ctx *ctx, const void *indata,
-    size_t insize)
+__archive_sha512update(archive_sha512_ctx *ctx, const void *data, size_t length)
 {
-  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
-    psa_hash_abort(ctx);
-    return (ARCHIVE_FATAL);
-  }
-  return (ARCHIVE_OK);
+    return psa_digest_update(ctx, data, length);
 }
-
 static int
-__archive_sha512final(archive_sha512_ctx *ctx, void *md)
+__archive_sha512final(archive_sha512_ctx *ctx, void *digest)
 {
-  size_t length = 0;
-  psa_status_t status = psa_hash_finish(ctx, md, 64, &length);
-  psa_hash_abort(ctx);
-  return (status == PSA_SUCCESS && length == 64) ? ARCHIVE_OK : ARCHIVE_FATAL;
+    return psa_digest_final(ctx, digest, 64);
 }
 #else
 

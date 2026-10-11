@@ -141,58 +141,74 @@ __hmac_sha1_cleanup(archive_hmac_sha1_ctx *ctx)
 static int
 __hmac_sha1_init(archive_hmac_sha1_ctx *ctx, const uint8_t *key, size_t key_len)
 {
-	psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
-	psa_mac_operation_t initial = PSA_MAC_OPERATION_INIT;
-	static const uint8_t empty_key = 0;
-	memset(ctx, 0, sizeof(*ctx));
-	ctx->operation = initial;
-	/* HMAC's padding makes an empty key equivalent to one zero byte. */
-	if (key_len == 0) {
-		key = &empty_key;
-		key_len = 1;
-	}
-	ctx->status = psa_crypto_init();
-	psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
-	psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
-	psa_set_key_algorithm(&attributes, PSA_ALG_HMAC(PSA_ALG_SHA_1));
-	if (ctx->status == PSA_SUCCESS)
-		ctx->status = psa_import_key(&attributes, key, key_len, &ctx->key);
-	psa_reset_key_attributes(&attributes);
-	if (ctx->status == PSA_SUCCESS)
-		ctx->status = psa_mac_sign_setup(&ctx->operation, ctx->key, PSA_ALG_HMAC(PSA_ALG_SHA_1));
-	if (ctx->status != PSA_SUCCESS) {
-		psa_mac_abort(&ctx->operation);
-		psa_destroy_key(ctx->key);
-		memset(ctx, 0, sizeof(*ctx));
-		return -1;
-	}
-	return 0;
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_mac_operation_t op = PSA_MAC_OPERATION_INIT;
+    static const uint8_t empty_key = 0;
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->op = op;
+    /* Preserve HMAC's defined empty-key behavior when PSA rejects zero bits. */
+    if (key_len == 0) {
+        key = &empty_key;
+        key_len = 1;
+    }
+    ctx->status = __archive_psa_begin();
+    if (ctx->status != PSA_SUCCESS)
+        return -1;
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attributes, PSA_ALG_HMAC(PSA_ALG_SHA_1));
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
+    ctx->status = psa_import_key(&attributes, key, key_len, &ctx->key);
+    psa_reset_key_attributes(&attributes);
+    if (ctx->status == PSA_SUCCESS)
+        ctx->status = psa_mac_sign_setup(&ctx->op, ctx->key,
+            PSA_ALG_HMAC(PSA_ALG_SHA_1));
+    if (ctx->status != PSA_SUCCESS) {
+        psa_mac_abort(&ctx->op);
+        psa_destroy_key(ctx->key);
+        memset(&ctx->key, 0, sizeof(ctx->key));
+    }
+    __archive_psa_end();
+    return ctx->status == PSA_SUCCESS ? 0 : -1;
 }
 
 static void
-__hmac_sha1_update(archive_hmac_sha1_ctx *ctx, const uint8_t *data, size_t data_len)
+__hmac_sha1_update(archive_hmac_sha1_ctx *ctx, const uint8_t *data, size_t len)
 {
-	if (ctx->status == PSA_SUCCESS)
-		ctx->status = psa_mac_update(&ctx->operation, data, data_len);
+    if (ctx->status != PSA_SUCCESS)
+        return;
+    ctx->status = __archive_psa_begin();
+    if (ctx->status != PSA_SUCCESS)
+        return;
+    ctx->status = psa_mac_update(&ctx->op, data, len);
+    __archive_psa_end();
 }
 
 static void
 __hmac_sha1_final(archive_hmac_sha1_ctx *ctx, uint8_t *out, size_t *out_len)
 {
-	size_t length = 0;
-	if (ctx->status == PSA_SUCCESS)
-		ctx->status = psa_mac_sign_finish(&ctx->operation, out, *out_len, &length);
-	*out_len = (ctx->status == PSA_SUCCESS) ? length : 0;
+    size_t written = 0;
+    if (ctx->status == PSA_SUCCESS) {
+        ctx->status = __archive_psa_begin();
+        if (ctx->status == PSA_SUCCESS) {
+            ctx->status = psa_mac_sign_finish(&ctx->op, out, *out_len, &written);
+            __archive_psa_end();
+        }
+    }
+    /* The legacy interface cannot return an update/final error. A zero
+     * result length makes callers reject the authentication value. */
+    *out_len = ctx->status == PSA_SUCCESS ? written : 0;
 }
 
 static void
 __hmac_sha1_cleanup(archive_hmac_sha1_ctx *ctx)
 {
-	psa_mac_abort(&ctx->operation);
-	psa_destroy_key(ctx->key);
-	memset(ctx, 0, sizeof(*ctx));
+    if (__archive_psa_begin() == PSA_SUCCESS) {
+        psa_mac_abort(&ctx->op);
+        psa_destroy_key(ctx->key);
+        __archive_psa_end();
+    }
+    memset(ctx, 0, sizeof(*ctx));
 }
-
 #elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_MD_H)
 
 static int

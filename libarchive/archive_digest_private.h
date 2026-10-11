@@ -118,7 +118,7 @@
 
 /* mbed TLS crypto headers */
 #if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
-#include <psa/crypto.h>
+#include "archive_mbedtls_private.h"
 #else
 #if defined(ARCHIVE_CRYPTO_MD5_MBEDTLS)
 #include <mbedtls/md5.h>
