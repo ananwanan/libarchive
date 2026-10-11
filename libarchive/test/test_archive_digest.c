@@ -81,6 +81,15 @@ DEFINE_TEST(test_archive_hmac_sha1)
 	/* Cleanup must also release an unfinished operation and its imported key. */
 	assertEqualInt(0, archive_hmac_sha1_init(&ctx, key, sizeof(key)));
 	archive_hmac_sha1_cleanup(&ctx);
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA) && defined(ARCHIVE_CRYPTOR_USE_MBED)
+	/* A real API failure must retain zero output length through cleanup. */
+	assertEqualInt(0, archive_hmac_sha1_init(&ctx, key, sizeof(key)));
+	archive_hmac_sha1_update(&ctx, (const uint8_t *)"Hi There", 8);
+	length = 1;
+	archive_hmac_sha1_final(&ctx, output, &length);
+	assertEqualInt(0, length);
+	archive_hmac_sha1_cleanup(&ctx);
+#endif
 }
 
 DEFINE_TEST(test_archive_aes_ctr)

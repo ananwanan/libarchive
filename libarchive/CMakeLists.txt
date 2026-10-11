@@ -41,6 +41,8 @@ SET(libarchive_SOURCES
   archive_hmac.c
   archive_hmac_private.h
   archive_integer.h
+  archive_mbedtls.c
+  archive_mbedtls_private.h
   archive_match.c
   archive_openssl_evp_private.h
   archive_openssl_hmac_private.h

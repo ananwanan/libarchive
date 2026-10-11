@@ -879,6 +879,11 @@ IF(ENABLE_MBEDTLS)
     # headers. Use only the supported PSA API, never private driver headers.
     IF(HAVE_MBEDTLS_PSA_CRYPTO_H AND HAVE_TF_PSA_CRYPTO_VERSION_H)
       SET(ARCHIVE_CRYPTO_MBEDTLS_PSA 1)
+      IF(NOT WIN32)
+        FIND_PACKAGE(Threads REQUIRED)
+        LIST(APPEND ADDITIONAL_LIBS Threads::Threads)
+        LIST(APPEND MBEDCRYPTO_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
+      ENDIF()
     ENDIF()
     CMAKE_POP_CHECK_STATE()
 
@@ -1019,6 +1024,9 @@ MACRO(CHECK_CRYPTO ALGORITHMS IMPLEMENTATION)
 #define ARCHIVE_${algorithm}_COMPILE_TEST
 #define ARCHIVE_CRYPTO_${algorithm}_${IMPLEMENTATION}
 #define PLATFORM_CONFIG_H \"check_crypto_md.h\"
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+#include \"archive_mbedtls.c\"
+#endif
 
 ${ARCHIVE_CRYPTO_C}
 

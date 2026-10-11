@@ -370,7 +370,11 @@ archive_mbedtls_version(void)
 #if defined(ARCHIVE_CRYPTOR_USE_MBED) || defined(ARCHIVE_CRYPTO_MBED)
 #if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
 	/* The crypto library no longer exports TLS's version functions. */
+#if defined(MBEDTLS_VERSION_STRING)
 	return MBEDTLS_VERSION_STRING "/TF-PSA-Crypto-" TF_PSA_CRYPTO_VERSION_STRING;
+#else
+	return TF_PSA_CRYPTO_VERSION_STRING_FULL;
+#endif
 #else
 	static char mbed_version[9];
 	mbedtls_version_get_string(mbed_version);

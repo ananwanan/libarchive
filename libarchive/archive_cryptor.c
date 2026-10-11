@@ -79,23 +79,27 @@ pbkdf2_sha1(const char *pw, size_t pw_len, const uint8_t *salt,
     size_t salt_len, unsigned rounds, uint8_t *derived_key,
     size_t derived_key_len)
 {
-	psa_key_derivation_operation_t operation = PSA_KEY_DERIVATION_OPERATION_INIT;
-	psa_status_t status = psa_crypto_init();
-	if (status == PSA_SUCCESS)
-		status = psa_key_derivation_setup(&operation, PSA_ALG_PBKDF2_HMAC(PSA_ALG_SHA_1));
-	if (status == PSA_SUCCESS)
-		status = psa_key_derivation_input_integer(&operation, PSA_KEY_DERIVATION_INPUT_COST, rounds);
-	if (status == PSA_SUCCESS)
-		status = psa_key_derivation_input_bytes(&operation, PSA_KEY_DERIVATION_INPUT_SALT, salt, salt_len);
-	if (status == PSA_SUCCESS)
-		status = psa_key_derivation_input_bytes(&operation, PSA_KEY_DERIVATION_INPUT_PASSWORD,
-		    (const uint8_t *)pw, pw_len);
-	if (status == PSA_SUCCESS)
-		status = psa_key_derivation_output_bytes(&operation, derived_key, derived_key_len);
-	psa_key_derivation_abort(&operation);
-	return (status == PSA_SUCCESS) ? 0 : -1;
+    psa_key_derivation_operation_t op = PSA_KEY_DERIVATION_OPERATION_INIT;
+    psa_status_t status;
+    if (__archive_psa_begin() != PSA_SUCCESS)
+        return -1;
+    status = psa_key_derivation_setup(&op, PSA_ALG_PBKDF2_HMAC(PSA_ALG_SHA_1));
+    if (status == PSA_SUCCESS)
+        status = psa_key_derivation_input_integer(&op,
+            PSA_KEY_DERIVATION_INPUT_COST, rounds);
+    if (status == PSA_SUCCESS)
+        status = psa_key_derivation_input_bytes(&op,
+            PSA_KEY_DERIVATION_INPUT_SALT, salt, salt_len);
+    if (status == PSA_SUCCESS)
+        status = psa_key_derivation_input_bytes(&op,
+            PSA_KEY_DERIVATION_INPUT_PASSWORD, (const uint8_t *)pw, pw_len);
+    if (status == PSA_SUCCESS)
+        status = psa_key_derivation_output_bytes(&op, derived_key, derived_key_len);
+    if (psa_key_derivation_abort(&op) != PSA_SUCCESS)
+        status = PSA_ERROR_BAD_STATE;
+    __archive_psa_end();
+    return status == PSA_SUCCESS ? 0 : -1;
 }
-
 #elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_PKCS5_H)
 
 static int
@@ -314,41 +318,62 @@ aes_ctr_release(archive_crypto_ctx *ctx)
 static int
 aes_ctr_init(archive_crypto_ctx *ctx, const uint8_t *key, size_t key_len)
 {
-	psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
-	psa_status_t status;
-	memset(ctx, 0, sizeof(*ctx));
-	ctx->encr_pos = AES_BLOCK_SIZE;
-	if (key_len != 16 && key_len != 24 && key_len != 32)
-		return -1;
-	status = psa_crypto_init();
-	if (status != PSA_SUCCESS)
-		return -1;
-	psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
-	psa_set_key_bits(&attributes, key_len * 8);
-	psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_ENCRYPT);
-	psa_set_key_algorithm(&attributes, PSA_ALG_ECB_NO_PADDING);
-	status = psa_import_key(&attributes, key, key_len, &ctx->key);
-	psa_reset_key_attributes(&attributes);
-	return (status == PSA_SUCCESS) ? 0 : -1;
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_cipher_operation_t cipher = PSA_CIPHER_OPERATION_INIT;
+    psa_status_t status;
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->cipher = cipher;
+    if (key_len != 16 && key_len != 24 && key_len != 32)
+        return -1;
+    if (__archive_psa_begin() != PSA_SUCCESS)
+        return -1;
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_ENCRYPT);
+    psa_set_key_algorithm(&attributes, PSA_ALG_ECB_NO_PADDING);
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+    psa_set_key_bits(&attributes, key_len * 8);
+    status = psa_import_key(&attributes, key, key_len, &ctx->key);
+    psa_reset_key_attributes(&attributes);
+    if (status == PSA_SUCCESS)
+        status = psa_cipher_encrypt_setup(&ctx->cipher, ctx->key,
+            PSA_ALG_ECB_NO_PADDING);
+    if (status != PSA_SUCCESS) {
+        psa_cipher_abort(&ctx->cipher);
+        psa_destroy_key(ctx->key);
+        memset(&ctx->key, 0, sizeof(ctx->key));
+    }
+    __archive_psa_end();
+    ctx->encr_pos = AES_BLOCK_SIZE;
+    return status == PSA_SUCCESS ? 0 : -1;
 }
 
 static int
 aes_ctr_encrypt_counter(archive_crypto_ctx *ctx)
 {
-	size_t length = 0;
-	psa_status_t status = psa_cipher_encrypt(ctx->key, PSA_ALG_ECB_NO_PADDING,
-	    ctx->nonce, AES_BLOCK_SIZE, ctx->encr_buf, AES_BLOCK_SIZE, &length);
-	return (status == PSA_SUCCESS && length == AES_BLOCK_SIZE) ? 0 : -1;
+    size_t output_len = 0;
+    psa_status_t status;
+    if (__archive_psa_begin() != PSA_SUCCESS)
+        return -1;
+    /* ZIP AES uses a little-endian counter, unlike PSA CTR mode. Preserve
+     * libarchive's existing counter logic and encrypt each block with ECB. */
+    status = psa_cipher_update(&ctx->cipher,
+        ctx->nonce, AES_BLOCK_SIZE, ctx->encr_buf, AES_BLOCK_SIZE, &output_len);
+    __archive_psa_end();
+    return status == PSA_SUCCESS && output_len == AES_BLOCK_SIZE ? 0 : -1;
 }
 
 static int
 aes_ctr_release(archive_crypto_ctx *ctx)
 {
-	psa_status_t status = psa_destroy_key(ctx->key);
-	memset(ctx, 0, sizeof(*ctx));
-	return (status == PSA_SUCCESS) ? 0 : -1;
+    psa_status_t status;
+    if (__archive_psa_begin() != PSA_SUCCESS)
+        return -1;
+    status = psa_cipher_abort(&ctx->cipher);
+    if (psa_destroy_key(ctx->key) != PSA_SUCCESS)
+        status = PSA_ERROR_BAD_STATE;
+    __archive_psa_end();
+    memset(ctx, 0, sizeof(*ctx));
+    return status == PSA_SUCCESS ? 0 : -1;
 }
-
 #elif defined(HAVE_LIBMBEDCRYPTO) && defined(HAVE_MBEDTLS_AES_H)
 
 static int
