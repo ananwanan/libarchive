@@ -29,6 +29,88 @@
 
 #define __LIBARCHIVE_BUILD 1
 #include "archive_digest_private.h"
+#include "archive_cryptor_private.h"
+#include "archive_hmac_private.h"
+
+/* RFC 6070 PBKDF2-HMAC-SHA1 and RFC 2202 HMAC-SHA1 vectors also exercise
+ * the public PSA implementation in Mbed TLS 4 / TF-PSA-Crypto builds. */
+DEFINE_TEST(test_archive_pbkdf2_sha1)
+{
+	int ret;
+	unsigned char output[20];
+	const unsigned char expected[] = "\xea\x6c\x01\x4d\xc7\x2d\x6f\x8c"
+	    "\xcd\x1e\xd9\x2a\xce\x1d\x41\xf0\xd8\xde\x89\x57";
+	ret = archive_pbkdf2_sha1("password", 8, (const uint8_t *)"salt", 4,
+	    2, output, sizeof(output));
+	if (ret != 0) {
+#ifdef ARCHIVE_CRYPTO_MBEDTLS_PSA
+		assertEqualInt(0, ret);
+#else
+		skipping("This platform does not support PBKDF2-SHA1");
+#endif
+		return;
+	}
+	assertEqualMem(output, expected, sizeof(output));
+}
+
+DEFINE_TEST(test_archive_hmac_sha1)
+{
+	int ret;
+	archive_hmac_sha1_ctx ctx;
+	unsigned char key[20];
+	unsigned char output[20];
+	size_t length = sizeof(output);
+	const unsigned char expected[] = "\xb6\x17\x31\x86\x55\x05\x72\x64"
+	    "\xe2\x8b\xc0\xb6\xfb\x37\x8c\x8e\xf1\x46\xbe\x00";
+	memset(key, 0x0b, sizeof(key));
+	ret = archive_hmac_sha1_init(&ctx, key, sizeof(key));
+	if (ret != 0) {
+#ifdef ARCHIVE_CRYPTO_MBEDTLS_PSA
+		assertEqualInt(0, ret);
+#else
+		skipping("This platform does not support HMAC-SHA1");
+#endif
+		return;
+	}
+	archive_hmac_sha1_update(&ctx, (const uint8_t *)"Hi ", 3);
+	archive_hmac_sha1_update(&ctx, (const uint8_t *)"There", 5);
+	archive_hmac_sha1_final(&ctx, output, &length);
+	assertEqualInt(sizeof(output), length);
+	assertEqualMem(output, expected, sizeof(output));
+	archive_hmac_sha1_cleanup(&ctx);
+	/* Cleanup must also release an unfinished operation and its imported key. */
+	assertEqualInt(0, archive_hmac_sha1_init(&ctx, key, sizeof(key)));
+	archive_hmac_sha1_cleanup(&ctx);
+}
+
+DEFINE_TEST(test_archive_aes_ctr)
+{
+	int ret;
+	archive_crypto_ctx ctx;
+	unsigned char key[16] = {0};
+	unsigned char input[16] = {0};
+	unsigned char output[16];
+	size_t length = 5;
+	const unsigned char expected[] = "\x47\x71\x18\x16\xe9\x1d\x6f\xf0"
+	    "\x59\xbb\xbf\x2b\xf5\x8e\x0f\xd3";
+	ret = archive_encrypto_aes_ctr_init(&ctx, key, sizeof(key));
+	if (ret != 0) {
+#ifdef ARCHIVE_CRYPTO_MBEDTLS_PSA
+		assertEqualInt(0, ret);
+#else
+		skipping("This platform does not support AES-CTR");
+#endif
+		return;
+	}
+	assertEqualInt(0, archive_encrypto_aes_ctr_update(&ctx, input, 5, output, &length));
+	assertEqualInt(5, length);
+	length = 11;
+	assertEqualInt(0, archive_encrypto_aes_ctr_update(&ctx, input + 5, 11,
+	    output + 5, &length));
+	assertEqualInt(11, length);
+	assertEqualMem(output, expected, sizeof(output));
+	assertEqualInt(0, archive_encrypto_aes_ctr_release(&ctx));
+}
 
 DEFINE_TEST(test_archive_md5)
 {

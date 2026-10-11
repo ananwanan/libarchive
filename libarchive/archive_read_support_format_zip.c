@@ -1647,6 +1647,11 @@ check_authentication_code(struct archive_read *a, const void *_p)
 		int cmp;
 
 		archive_hmac_sha1_final(&zip->hctx, hmac, &hmac_len);
+		if (hmac_len != sizeof(hmac)) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Failed to compute ZIP authentication code");
+			return (ARCHIVE_FATAL);
+		}
 		if (_p == NULL) {
 			/* Read authentication code. */
 			p = __archive_read_ahead(a, AUTH_CODE_SIZE, NULL);

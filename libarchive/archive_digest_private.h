@@ -117,6 +117,9 @@
 #endif
 
 /* mbed TLS crypto headers */
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+#include <psa/crypto.h>
+#else
 #if defined(ARCHIVE_CRYPTO_MD5_MBEDTLS)
 #include <mbedtls/md5.h>
 #endif
@@ -133,6 +136,8 @@
   defined(ARCHIVE_CRYPTO_SHA512_MBEDTLS)
 #include <mbedtls/sha512.h>
 #endif
+
+#endif /* ARCHIVE_CRYPTO_MBEDTLS_PSA */
 
 /* Nettle crypto headers */
 #if defined(HAVE_NETTLE_VERSION_H)
@@ -199,7 +204,11 @@ typedef CC_MD5_CTX archive_md5_ctx;
 typedef Digest_CTX archive_md5_ctx;
 #elif defined(ARCHIVE_CRYPTO_MD5_MBEDTLS)
 #define	ARCHIVE_CRYPTO_MBED 1
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+typedef psa_hash_operation_t archive_md5_ctx;
+#else
 typedef mbedtls_md5_context archive_md5_ctx;
+#endif
 #elif defined(ARCHIVE_CRYPTO_MD5_NETTLE)
 #define	ARCHIVE_CRYPTO_NETTLE 1
 typedef struct md5_ctx archive_md5_ctx;
@@ -215,7 +224,11 @@ typedef RMD160_CTX archive_rmd160_ctx;
 typedef RIPEMD160_CTX archive_rmd160_ctx;
 #elif defined(ARCHIVE_CRYPTO_RMD160_MBEDTLS)
 #define	ARCHIVE_CRYPTO_MBED 1
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+typedef psa_hash_operation_t archive_rmd160_ctx;
+#else
 typedef mbedtls_ripemd160_context archive_rmd160_ctx;
+#endif
 #elif defined(ARCHIVE_CRYPTO_RMD160_NETTLE)
 #define	ARCHIVE_CRYPTO_NETTLE 1
 typedef struct ripemd160_ctx archive_rmd160_ctx;
@@ -235,7 +248,11 @@ typedef CC_SHA1_CTX archive_sha1_ctx;
 typedef Digest_CTX archive_sha1_ctx;
 #elif defined(ARCHIVE_CRYPTO_SHA1_MBEDTLS)
 #define	ARCHIVE_CRYPTO_MBED 1
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+typedef psa_hash_operation_t archive_sha1_ctx;
+#else
 typedef mbedtls_sha1_context archive_sha1_ctx;
+#endif
 #elif defined(ARCHIVE_CRYPTO_SHA1_NETTLE)
 #define	ARCHIVE_CRYPTO_NETTLE 1
 typedef struct sha1_ctx archive_sha1_ctx;
@@ -259,7 +276,11 @@ typedef CC_SHA256_CTX archive_sha256_ctx;
 typedef Digest_CTX archive_sha256_ctx;
 #elif defined(ARCHIVE_CRYPTO_SHA256_MBEDTLS)
 #define	ARCHIVE_CRYPTO_MBED 1
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+typedef psa_hash_operation_t archive_sha256_ctx;
+#else
 typedef mbedtls_sha256_context archive_sha256_ctx;
+#endif
 #elif defined(ARCHIVE_CRYPTO_SHA256_NETTLE)
 #define	ARCHIVE_CRYPTO_NETTLE 1
 typedef struct sha256_ctx archive_sha256_ctx;
@@ -281,7 +302,11 @@ typedef CC_SHA512_CTX archive_sha384_ctx;
 typedef Digest_CTX archive_sha384_ctx;
 #elif defined(ARCHIVE_CRYPTO_SHA384_MBEDTLS)
 #define	ARCHIVE_CRYPTO_MBED 1
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+typedef psa_hash_operation_t archive_sha384_ctx;
+#else
 typedef mbedtls_sha512_context archive_sha384_ctx;
+#endif
 #elif defined(ARCHIVE_CRYPTO_SHA384_NETTLE)
 #define	ARCHIVE_CRYPTO_NETTLE 1
 typedef struct sha384_ctx archive_sha384_ctx;
@@ -305,7 +330,11 @@ typedef CC_SHA512_CTX archive_sha512_ctx;
 typedef Digest_CTX archive_sha512_ctx;
 #elif defined(ARCHIVE_CRYPTO_SHA512_MBEDTLS)
 #define	ARCHIVE_CRYPTO_MBED 1
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+typedef psa_hash_operation_t archive_sha512_ctx;
+#else
 typedef mbedtls_sha512_context archive_sha512_ctx;
+#endif
 #elif defined(ARCHIVE_CRYPTO_SHA512_NETTLE)
 #define	ARCHIVE_CRYPTO_NETTLE 1
 typedef struct sha512_ctx archive_sha512_ctx;

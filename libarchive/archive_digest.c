@@ -207,6 +207,41 @@ __archive_md5final(archive_md5_ctx *ctx, void *md)
 
 #elif defined(ARCHIVE_CRYPTO_MD5_MBEDTLS)
 
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+static int
+__archive_md5init(archive_md5_ctx *ctx)
+{
+  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
+  *ctx = initial;
+  if (psa_crypto_init() != PSA_SUCCESS ||
+      psa_hash_setup(ctx, PSA_ALG_MD5) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_md5update(archive_md5_ctx *ctx, const void *indata,
+    size_t insize)
+{
+  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_md5final(archive_md5_ctx *ctx, void *md)
+{
+  size_t length = 0;
+  psa_status_t status = psa_hash_finish(ctx, md, 16, &length);
+  psa_hash_abort(ctx);
+  return (status == PSA_SUCCESS && length == 16) ? ARCHIVE_OK : ARCHIVE_FATAL;
+}
+#else
+
 static int
 __archive_md5init(archive_md5_ctx *ctx)
 {
@@ -250,6 +285,8 @@ __archive_md5final(archive_md5_ctx *ctx, void *md)
     return (ARCHIVE_FATAL);
   }
 }
+
+#endif /* ARCHIVE_CRYPTO_MBEDTLS_PSA */
 
 #elif defined(ARCHIVE_CRYPTO_MD5_NETTLE)
 
@@ -394,6 +431,41 @@ __archive_ripemd160final(archive_rmd160_ctx *ctx, void *md)
 
 #elif defined(ARCHIVE_CRYPTO_RMD160_MBEDTLS)
 
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+static int
+__archive_ripemd160init(archive_rmd160_ctx *ctx)
+{
+  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
+  *ctx = initial;
+  if (psa_crypto_init() != PSA_SUCCESS ||
+      psa_hash_setup(ctx, PSA_ALG_RIPEMD160) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_ripemd160update(archive_rmd160_ctx *ctx, const void *indata,
+    size_t insize)
+{
+  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_ripemd160final(archive_rmd160_ctx *ctx, void *md)
+{
+  size_t length = 0;
+  psa_status_t status = psa_hash_finish(ctx, md, 20, &length);
+  psa_hash_abort(ctx);
+  return (status == PSA_SUCCESS && length == 20) ? ARCHIVE_OK : ARCHIVE_FATAL;
+}
+#else
+
 static int
 __archive_ripemd160init(archive_rmd160_ctx *ctx)
 {
@@ -437,6 +509,8 @@ __archive_ripemd160final(archive_rmd160_ctx *ctx, void *md)
     return (ARCHIVE_FATAL);
   }
 }
+
+#endif /* ARCHIVE_CRYPTO_MBEDTLS_PSA */
 
 #elif defined(ARCHIVE_CRYPTO_RMD160_NETTLE)
 
@@ -622,6 +696,41 @@ __archive_sha1final(archive_sha1_ctx *ctx, void *md)
 
 #elif defined(ARCHIVE_CRYPTO_SHA1_MBEDTLS)
 
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+static int
+__archive_sha1init(archive_sha1_ctx *ctx)
+{
+  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
+  *ctx = initial;
+  if (psa_crypto_init() != PSA_SUCCESS ||
+      psa_hash_setup(ctx, PSA_ALG_SHA_1) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_sha1update(archive_sha1_ctx *ctx, const void *indata,
+    size_t insize)
+{
+  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_sha1final(archive_sha1_ctx *ctx, void *md)
+{
+  size_t length = 0;
+  psa_status_t status = psa_hash_finish(ctx, md, 20, &length);
+  psa_hash_abort(ctx);
+  return (status == PSA_SUCCESS && length == 20) ? ARCHIVE_OK : ARCHIVE_FATAL;
+}
+#else
+
 static int
 __archive_sha1init(archive_sha1_ctx *ctx)
 {
@@ -665,6 +774,8 @@ __archive_sha1final(archive_sha1_ctx *ctx, void *md)
     return (ARCHIVE_FATAL);
   }
 }
+
+#endif /* ARCHIVE_CRYPTO_MBEDTLS_PSA */
 
 #elif defined(ARCHIVE_CRYPTO_SHA1_NETTLE)
 
@@ -902,6 +1013,41 @@ __archive_sha256final(archive_sha256_ctx *ctx, void *md)
 
 #elif defined(ARCHIVE_CRYPTO_SHA256_MBEDTLS)
 
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+static int
+__archive_sha256init(archive_sha256_ctx *ctx)
+{
+  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
+  *ctx = initial;
+  if (psa_crypto_init() != PSA_SUCCESS ||
+      psa_hash_setup(ctx, PSA_ALG_SHA_256) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_sha256update(archive_sha256_ctx *ctx, const void *indata,
+    size_t insize)
+{
+  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_sha256final(archive_sha256_ctx *ctx, void *md)
+{
+  size_t length = 0;
+  psa_status_t status = psa_hash_finish(ctx, md, 32, &length);
+  psa_hash_abort(ctx);
+  return (status == PSA_SUCCESS && length == 32) ? ARCHIVE_OK : ARCHIVE_FATAL;
+}
+#else
+
 static int
 __archive_sha256init(archive_sha256_ctx *ctx)
 {
@@ -945,6 +1091,8 @@ __archive_sha256final(archive_sha256_ctx *ctx, void *md)
     return (ARCHIVE_FATAL);
   }
 }
+
+#endif /* ARCHIVE_CRYPTO_MBEDTLS_PSA */
 
 #elif defined(ARCHIVE_CRYPTO_SHA256_NETTLE)
 
@@ -1154,6 +1302,41 @@ __archive_sha384final(archive_sha384_ctx *ctx, void *md)
 
 #elif defined(ARCHIVE_CRYPTO_SHA384_MBEDTLS)
 
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+static int
+__archive_sha384init(archive_sha384_ctx *ctx)
+{
+  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
+  *ctx = initial;
+  if (psa_crypto_init() != PSA_SUCCESS ||
+      psa_hash_setup(ctx, PSA_ALG_SHA_384) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_sha384update(archive_sha384_ctx *ctx, const void *indata,
+    size_t insize)
+{
+  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_sha384final(archive_sha384_ctx *ctx, void *md)
+{
+  size_t length = 0;
+  psa_status_t status = psa_hash_finish(ctx, md, 48, &length);
+  psa_hash_abort(ctx);
+  return (status == PSA_SUCCESS && length == 48) ? ARCHIVE_OK : ARCHIVE_FATAL;
+}
+#else
+
 static int
 __archive_sha384init(archive_sha384_ctx *ctx)
 {
@@ -1197,6 +1380,8 @@ __archive_sha384final(archive_sha384_ctx *ctx, void *md)
     return (ARCHIVE_FATAL);
   }
 }
+
+#endif /* ARCHIVE_CRYPTO_MBEDTLS_PSA */
 
 #elif defined(ARCHIVE_CRYPTO_SHA384_NETTLE)
 
@@ -1430,6 +1615,41 @@ __archive_sha512final(archive_sha512_ctx *ctx, void *md)
 
 #elif defined(ARCHIVE_CRYPTO_SHA512_MBEDTLS)
 
+#if defined(ARCHIVE_CRYPTO_MBEDTLS_PSA)
+static int
+__archive_sha512init(archive_sha512_ctx *ctx)
+{
+  psa_hash_operation_t initial = PSA_HASH_OPERATION_INIT;
+  *ctx = initial;
+  if (psa_crypto_init() != PSA_SUCCESS ||
+      psa_hash_setup(ctx, PSA_ALG_SHA_512) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_sha512update(archive_sha512_ctx *ctx, const void *indata,
+    size_t insize)
+{
+  if (psa_hash_update(ctx, indata, insize) != PSA_SUCCESS) {
+    psa_hash_abort(ctx);
+    return (ARCHIVE_FATAL);
+  }
+  return (ARCHIVE_OK);
+}
+
+static int
+__archive_sha512final(archive_sha512_ctx *ctx, void *md)
+{
+  size_t length = 0;
+  psa_status_t status = psa_hash_finish(ctx, md, 64, &length);
+  psa_hash_abort(ctx);
+  return (status == PSA_SUCCESS && length == 64) ? ARCHIVE_OK : ARCHIVE_FATAL;
+}
+#else
+
 static int
 __archive_sha512init(archive_sha512_ctx *ctx)
 {
@@ -1473,6 +1693,8 @@ __archive_sha512final(archive_sha512_ctx *ctx, void *md)
     return (ARCHIVE_FATAL);
   }
 }
+
+#endif /* ARCHIVE_CRYPTO_MBEDTLS_PSA */
 
 #elif defined(ARCHIVE_CRYPTO_SHA512_NETTLE)
 
