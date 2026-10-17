@@ -541,8 +541,6 @@ archive_read_open1(struct archive *_a)
 
 	a->archive.state = ARCHIVE_STATE_HEADER;
 
-	/* Ensure libarchive starts from the first node in a multivolume set */
-	client_switch_proxy(f, 0);
 	return (e);
 }
 
@@ -703,7 +701,6 @@ _archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
 
 	__archive_reset_read_data(&a->archive);
 
-	a->data_start_node = a->client.cursor;
 	/* EOF always wins; otherwise return the worst error. */
 	return (r2 < r1 || r2 == ARCHIVE_EOF) ? r2 : r1;
 }

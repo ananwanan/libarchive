@@ -320,9 +320,6 @@ struct heap_queue {
 };
 
 struct iso9660 {
-	int	magic;
-#define ISO9660_MAGIC   0x96609660
-
 	int opt_support_joliet;
 	int opt_support_rockridge;
 
@@ -391,7 +388,7 @@ static int	archive_read_format_iso9660_read_data(struct archive_read *,
 static int	archive_read_format_iso9660_read_data_skip(struct archive_read *);
 static int	archive_read_format_iso9660_read_header(struct archive_read *,
 		    struct archive_entry *);
-static const char *build_pathname(struct archive_string *, struct file_info *, int);
+static int	build_pathname(struct archive_string *, struct file_info *, int);
 static int	build_pathname_utf16be(unsigned char *, size_t, size_t *,
 		    struct file_info *);
 #if DEBUG
@@ -467,7 +464,6 @@ archive_read_support_format_iso9660(struct archive *_a)
 		archive_set_error(_a, ENOMEM, "Can't allocate iso9660 data");
 		return (ARCHIVE_FATAL);
 	}
-	iso9660->magic = ISO9660_MAGIC;
 	iso9660->cache_files.first = NULL;
 	iso9660->cache_files.last = &(iso9660->cache_files.first);
 	iso9660->re_files.first = NULL;
@@ -1284,8 +1280,9 @@ archive_read_format_iso9660_read_header(struct archive_read *a,
 		}
 
 		iso9660->utf16be_path_len = 0;
-		if (build_pathname_utf16be(iso9660->utf16be_path,
-		    UTF16_NAME_MAX, &(iso9660->utf16be_path_len), file) != 0) {
+		r = build_pathname_utf16be(iso9660->utf16be_path,
+		    UTF16_NAME_MAX, &(iso9660->utf16be_path_len), file);
+		if (r != ARCHIVE_OK) {
 			archive_set_error(&a->archive,
 			    ARCHIVE_ERRNO_FILE_FORMAT,
 			    "Pathname is too long");
@@ -1312,16 +1309,15 @@ archive_read_format_iso9660_read_header(struct archive_read *a,
 			rd_r = ARCHIVE_WARN;
 		}
 	} else {
-		const char *path = build_pathname(&iso9660->pathname, file, 0);
-		if (path == NULL) {
+		archive_string_empty(&iso9660->pathname);
+		r = build_pathname(&iso9660->pathname, file, 0);
+		if (r != ARCHIVE_OK) {
 			archive_set_error(&a->archive,
 			    ARCHIVE_ERRNO_FILE_FORMAT,
 			    "Pathname is too long");
 			return (ARCHIVE_FATAL);
-		} else {
-			archive_string_empty(&iso9660->pathname);
-			archive_entry_set_pathname(entry, path);
 		}
+		archive_entry_set_pathname(entry, iso9660->pathname.s);
 	}
 
 	iso9660->entry_bytes_remaining = file->size;
@@ -3450,25 +3446,25 @@ time_from_tm(struct tm *t)
 #endif
 }
 
-static const char *
+static int
 build_pathname(struct archive_string *as, struct file_info *file, int depth)
 {
 	// Plain ISO9660 only allows 8 dir levels; if we get
 	// to 1000, then something is very, very wrong.
-	if (depth > 1000) {
-		return NULL;
-	}
+	if (depth > 1000)
+		return (ARCHIVE_FATAL);
 	if (file->parent != NULL && archive_strlen(&file->parent->name) > 0) {
-		if (build_pathname(as, file->parent, depth + 1) == NULL) {
-			return NULL;
-		}
+		int r = build_pathname(as, file->parent, depth + 1);
+
+		if (r != ARCHIVE_OK)
+			return (r);
 		archive_strcat(as, "/");
 	}
 	if (archive_strlen(&file->name) == 0)
 		archive_strcat(as, ".");
 	else
 		archive_string_concat(as, &file->name);
-	return (as->s);
+	return (ARCHIVE_OK);
 }
 
 static int
@@ -3476,27 +3472,28 @@ build_pathname_utf16be(unsigned char *p, size_t max, size_t *len,
     struct file_info *file)
 {
 	if (file->parent != NULL && file->parent->utf16be_bytes > 0) {
-		if (build_pathname_utf16be(p, max, len, file->parent) != 0)
-			return (-1);
+		if (build_pathname_utf16be(p, max, len, file->parent) !=
+		    ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
 		if (*len + 2 > max)
-			return (-1);/* Path is too long! */
+			return (ARCHIVE_FATAL);/* Path is too long! */
 		p[*len] = 0;
 		p[*len + 1] = '/';
 		*len += 2;
 	}
 	if (file->utf16be_bytes == 0) {
 		if (*len + 2 > max)
-			return (-1);/* Path is too long! */
+			return (ARCHIVE_FATAL);/* Path is too long! */
 		p[*len] = 0;
 		p[*len + 1] = '.';
 		*len += 2;
 	} else {
 		if (*len + file->utf16be_bytes > max)
-			return (-1);/* Path is too long! */
+			return (ARCHIVE_FATAL);/* Path is too long! */
 		memcpy(p + *len, file->utf16be_name, file->utf16be_bytes);
 		*len += file->utf16be_bytes;
 	}
-	return (0);
+	return (ARCHIVE_OK);
 }
 
 #if DEBUG

@@ -248,12 +248,12 @@ memory_read_seek(struct archive *a, void *client_data,
 		p = mine->end + offset;
 		break;
 	default:
-		return ARCHIVE_FATAL;
+		return ARCHIVE_FAILED;
 	}
 	if (p < mine->start)
-		return ARCHIVE_FATAL;
+		return ARCHIVE_FAILED;
 	if (p > mine->end)
-		return ARCHIVE_FATAL;
+		return ARCHIVE_FAILED;
 	mine->p = p;
 	return (mine->p - mine->start);
 }
@@ -386,6 +386,8 @@ DEFINE_TEST(test_archive_read_consume_beyond_eof)
 	assertEqualIntA(a, ARCHIVE_EOF, archive_read_next_header(a, &ae));
 
 	assertEqualInt(ARCHIVE_OK, archive_read_free(a));
+	free(buff1);
+	free(buff2);
 }
 
 DEFINE_TEST(test_archive_read_seek_fails)

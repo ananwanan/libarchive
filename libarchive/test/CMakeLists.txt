@@ -263,6 +263,7 @@ IF(ENABLE_TEST)
     test_read_format_zip_padded.c
     test_read_format_zip_sfx.c
     test_read_format_zip_size_exceeds_declared.c
+    test_read_format_zip_streamable_skip.c
     test_read_format_zip_symlink_unsupported_compression.c
     test_read_format_zip_traditional_encryption_data.c
     test_read_format_zip_uncompressed_size_off_by_4gib.c
@@ -359,6 +360,7 @@ IF(ENABLE_TEST)
     test_write_format_mtree_null_deref.c
     test_write_format_pax.c
     test_write_format_pax_align.c
+    test_write_format_pax_mac_meta.c
     test_write_format_raw.c
     test_write_format_raw_b64.c
     test_write_format_shar_empty.c
